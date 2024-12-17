@@ -30,7 +30,7 @@ usage() {
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v] [-a] [-e] [-u user-data-file] [-m meta-data-file] [-k] [--focal] [-c] [-r] [-s source-iso-file] [-d destination-iso-file]
 
 💁 This script will create fully-automated Ubuntu Server installation media.
-By default, Ubuntu 22.04 images are created, but Ubuntu 20.04 is available as well. 
+By default, Ubuntu 24.04 images are created, but Ubuntu 20.04 or 22.04 is available as well. 
 
 Available options:
 
@@ -51,6 +51,7 @@ Available options:
                         saved in a new keyring in ${script_dir}
 -c, --no-md5            Disable MD5 checksum on boot
     --focal             Create installation media for Ubuntu 20.04 Focal Fossa
+    --jammy             Create installation media for Ubuntu 22.04 Jammy Jellyfish
 -r, --use-release-iso   Use the current release ISO instead of the daily ISO. The file will be used if it already
                         exists.
 -s, --source            Source ISO file. By default the latest daily ISO will be downloaded
@@ -67,12 +68,9 @@ function parse_params() {
         user_data_file=''
         meta_data_file=''
         focal=0
-        download_url="https://cdimage.ubuntu.com/ubuntu-server/jammy/daily-live/current"
-        download_iso="jammy-live-server-amd64.iso"
-        original_iso="ubuntu-jammy-original-$today.iso"
-        source_iso="${script_dir}/${original_iso}"
-        destination_iso="${script_dir}/ubuntu-jammy-autoinstall-$today.iso"
-        sha_suffix="-jammy-${today}"
+        jammy=0
+        noble=1
+        current_distro=noble
         gpg_verify=1
         all_in_one=0
         use_hwe_kernel=0
@@ -83,7 +81,9 @@ function parse_params() {
                 case "${1-}" in
                 -h | --help) usage ;;
                 -v | --verbose) set -x ;;
-                --focal) focal=1 ;;
+                --focal) focal=1 ; noble=0 ; current_distro=focal ;;
+                --jammy) jammy=1 ; noble=0 ; current_distro=jammy ;;
+                --noble) noble=1 ; current_distro=noble ;;
                 -a | --all-in-one) all_in_one=1 ;;
                 -e | --use-hwe-kernel) use_hwe_kernel=1 ;;
                 -c | --no-md5) md5_checksum=0 ;;
@@ -111,7 +111,14 @@ function parse_params() {
                 shift
         done
 
-        log "👶 Starting up..."
+        download_url="https://cdimage.ubuntu.com/ubuntu-server/${current_distro}/daily-live/current"
+        download_iso="${current_distro}-live-server-amd64.iso"
+        original_iso="ubuntu-${current_distro}-original-$today.iso"
+        source_iso="${script_dir}/${original_iso}"
+        destination_iso="${script_dir}/ubuntu-${current_distro}-autoinstall-$today.iso"
+        sha_suffix="-${current_distro}-${today}"
+
+        log "👶 Starting up, selected distro ${current_distro} ..."
 
         # check required params and arguments
         if [ ${all_in_one} -ne 0 ]; then
@@ -124,24 +131,15 @@ function parse_params() {
                 [[ ! -f "${source_iso}" ]] && die "💥 Source ISO file could not be found."
         fi
 
-        if [ ${focal} -eq 1 ]; then
-                download_url="https://cdimage.ubuntu.com/ubuntu-server/focal/daily-live/current"
-                download_iso="focal-live-server-amd64.iso"
-                original_iso="ubuntu-focal-original-$today.iso"
-                source_iso="${script_dir}/${original_iso}"
-                destination_iso="${script_dir}/ubuntu-focal-autoinstall-$today.iso"
-                sha_suffix="-focal-${today}"
-
-        fi
-
         if [ "${use_release_iso}" -eq 1 ]; then
-                log "🔎 Checking for current release..."
+                download_url="https://releases.ubuntu.com/${current_distro}"
+                log "🔎 Checking for current release on ${download_url} ..."
                 if [ ${focal} -eq 1 ]; then
-                        download_url="https://releases.ubuntu.com/focal"
                         download_iso=$(curl -sSL "${download_url}" | grep -oP 'ubuntu-20\.04\.\d*-live-server-amd64\.iso' | head -n 1)
+                elif  [ ${jammy} -eq 1 ]; then
+                        download_iso=$(curl -sSL "${download_url}" | grep -oP 'ubuntu-22\.04\.\d*-live-server-amd64\.iso' | head -n 1)
                 else
-                        download_url="https://releases.ubuntu.com/jammy"
-                        download_iso=$(curl -sSL "${download_url}" | grep -oP 'ubuntu-22\.04(\.\d*)?-live-server-amd64\.iso' | head -n 1)
+                        download_iso=$(curl -sSL "${download_url}" | grep -oP 'ubuntu-24\.04(\.\d*)?-live-server-amd64\.iso' | head -n 1)
                 fi
                 original_iso="${download_iso}"
                 source_iso="${script_dir}/${download_iso}"
@@ -169,21 +167,25 @@ else
 fi
 
 log "🔎 Checking for required utilities..."
-[[ ! -x "$(command -v xorriso)" ]] && die "💥 xorriso is not installed. On Ubuntu, install  the 'xorriso' package."
-[[ ! -x "$(command -v sed)" ]] && die "💥 sed is not installed. On Ubuntu, install the 'sed' package."
-[[ ! -x "$(command -v curl)" ]] && die "💥 curl is not installed. On Ubuntu, install the 'curl' package."
-[[ ! -x "$(command -v gpg)" ]] && die "💥 gpg is not installed. On Ubuntu, install the 'gpg' package."
+[[ ! -x "$(command -v xorriso)" ]] && die "💥 xorriso is not installed. On Ubuntu, install  the 'xorriso' package using 'apt install xorisso'."
+[[ ! -x "$(command -v sed)" ]] && die "💥 sed is not installed. On Ubuntu, install the 'sed' package 'apt install sed'."
+[[ ! -x "$(command -v curl)" ]] && die "💥 curl is not installed. On Ubuntu, install the 'curl' package 'apt install curl'."
+[[ ! -x "$(command -v gpg)" ]] && die "💥 gpg is not installed. On Ubuntu, install the 'gpg' package 'apt install gpg'."
 if [ ${focal} -eq 1 ]; then
-        [[ ! -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]] && die "💥 isolinux is not installed. On Ubuntu, install the 'isolinux' package."
+        [[ ! -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]] && die "💥 isolinux is not installed. On Ubuntu, install the 'isolinux' package using 'apt install isolinux'."
 else
-        [[ ! -x "$(command -v fdisk)" ]] && die "💥 fdisk is not installed. On Ubuntu, install the 'fdisk' package."
+        [[ ! -x "$(command -v fdisk)" ]] && die "💥 fdisk is not installed. On Ubuntu, install the 'fdisk' package using 'apt install fdisk'."
 fi
 log "👍 All required utilities are installed."
 
 if [ ! -f "${source_iso}" ]; then
-        log "🌎 Downloading ISO image ..."
-        curl -NsSL "${download_url}/${download_iso}" -o "${source_iso}"
-        log "👍 Downloaded and saved to ${source_iso}"
+        if [ ${noble} -eq 1 ]; then
+                log "🌎 Downloading ISO image ${download_url}/${download_iso} ..."
+                curl -NsSL "${download_url}/${download_iso}" -o "${source_iso}"
+                log "👍 Downloaded and saved to ${source_iso}"
+        else
+                die "💥 Daily images are only  supported for newest distro, please use the --use-release-iso attribute instead."
+        fi
 else
         log "☑️ Using existing ${source_iso} file."
         if [ ${gpg_verify} -eq 1 ]; then

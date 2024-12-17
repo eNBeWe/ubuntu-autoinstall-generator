@@ -17,7 +17,7 @@ This script can use an existing ISO image or download the latest daily image fro
 By default, the source ISO image is checked for integrity and authenticity using GPG. This can be disabled with ```-k```.
 
 ### Requirements
-Tested on a host running Ubuntu 20.04.1.
+Tested on a host running Ubuntu 22.04.5.
 - Utilities required:
     - ```xorriso```
     - ```sed```
@@ -50,11 +50,13 @@ Available options:
                         saved in a new keyring in the script directory.
 -r, --use-release-iso   Use the current release ISO instead of the daily ISO. The file will be used if it already
                         exists.
--s, --source            Source ISO file. By default the latest daily ISO for Ubuntu 20.04 will be downloaded
+-s, --source            Source ISO file. By default the latest daily ISO for Ubuntu 24.04 will be downloaded
                         and saved as <script directory>/ubuntu-original-<current date>.iso
                         That file will be used by default if it already exists.
 -d, --destination       Destination ISO file. By default <script directory>/ubuntu-autoinstall-<current date>.iso will be
                         created, overwriting any existing file.
+    --focal             Create installation media for Ubuntu 20.04 Focal Fossa
+    --jammy             Create installation media for Ubuntu 22.04 Jammy Jellyfish
 ```
 
 ### Example
